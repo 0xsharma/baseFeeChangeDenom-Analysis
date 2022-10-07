@@ -7,6 +7,8 @@ var HTTPSWEB3 = 'http://localhost:8545'
 
 var web3 = new Web3(Web3.givenProvider || WSWEB3);
 
+const ALT_BASEFEE_CHANGE_DENOMINATOR = 64
+
 const timer = ms => new Promise(res => setTimeout(res, ms))
 
 var lastBlockNum = 0
@@ -77,7 +79,7 @@ async function getBlockTxCount(lastStartingTime){
                         pendingCountMoreThanLastBlockGasFee += 1
                     }
                     if(prevBlock.baseFeePerGas!==undefined){
-                        block.baseFee2 = CalcBaseFee(prevBlock, 64)
+                        block.baseFee2 = CalcBaseFee(prevBlock, ALT_BASEFEE_CHANGE_DENOMINATOR)
                         if((gasPriceToCheck-30000000000)>block.baseFee2){
                             pendingCountMoreThanLastBlockGasFee2 += 1
                         }
