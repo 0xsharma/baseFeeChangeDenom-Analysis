@@ -1,4 +1,4 @@
-const axios = require('axios')
+import axios from 'axios';
 const Web3 = require('web3');
 const fs = require('fs')
 
@@ -47,10 +47,7 @@ async function getBlockTxCount(lastStartingTime){
 
         var blockMiner = data[3]
         var prevBlockMiner = data[4]
-        console.log("-------")
-        console.log(prevBlockNum, " : ",prevBlock.transactions.length)
-        console.log(blockNum , " : ",block.transactions.length)
-        console.log("-------")
+        
 
         // txpool calc start
         var txpoolStats = await getTxPoolStatus()
@@ -75,11 +72,11 @@ async function getBlockTxCount(lastStartingTime){
                 gasPriceToCheck = parseInt(gasPriceToCheck, 16)
                 
                 if(block.baseFeePerGas!==undefined){
-                    if((gasPriceToCheck-30000000000)>block.baseFee){
+                    if((gasPriceToCheck-30000000000)>block.baseFeePerGas){
                         pendingCountMoreThanLastBlockGasFee += 1
                     }
                     if(prevBlock.baseFeePerGas!==undefined){
-                        block.baseFee2 = CalcBaseFee(prevBlock, ALT_BASEFEE_CHANGE_DENOMINATOR)
+                        block.baseFee2 = await CalcBaseFee(prevBlock, ALT_BASEFEE_CHANGE_DENOMINATOR)
                         if((gasPriceToCheck-30000000000)>block.baseFee2){
                             pendingCountMoreThanLastBlockGasFee2 += 1
                         }
@@ -104,9 +101,17 @@ async function getBlockTxCount(lastStartingTime){
             blockMiner : blockMiner,
             prevBlockMiner : prevBlockMiner,
             prevBlockBaseFee : prevBlock.baseFeePerGas,
+            baseFeeAlt : block.baseFee2,
             pendingCountMoreThanLastBlockGasFee2 : pendingCountMoreThanLastBlockGasFee2,
 
         }
+
+        console.log("-------")
+        console.log(blockNum)
+        console.log("PendingCountMoreThanLastBlockGasFee : ",pendingCountMoreThanLastBlockGasFee)
+        console.log("PendingCountMoreThanLastBlockGasFeeAlt : ",pendingCountMoreThanLastBlockGasFee2)
+        console.log("ALT potential difference : ",pendingCountMoreThanLastBlockGasFee2-pendingCountMoreThanLastBlockGasFee)
+        console.log("-------")
 
         
     
@@ -121,7 +126,11 @@ async function getBlockTxCount(lastStartingTime){
         blockS.queuedTxAfterBlock + ',' +
         blockS.pendingCountMoreThanLastBlockGasFee + ',' +
         blockS.blockMiner+ ',' +
-        blockS.prevBlockMiner
+        blockS.prevBlockMiner+ ',' +
+        blockS.prevBlockBaseFee+ ',' +
+        blockS.baseFeeAlt+ ',' +
+        blockS.pendingCountMoreThanLastBlockGasFee2+ ',' +
+        parseInt(pendingCountMoreThanLastBlockGasFee2-pendingCountMoreThanLastBlockGasFee)
         , function (err) {
             if (err) throw err;
             console.log('Added', JSON.stringify(blockS));
@@ -194,22 +203,22 @@ async function CalcBaseFee(prevBlock, baseFeeChangeDenominator){
     let parentGasTarget = parseInt(prevBlock.gasLimit/2)
 
     if (prevBlock.gasUsed == parentGasTarget ){
-		return prevBlock.baseFee
+		return prevBlock.baseFeePerGas
 	}
     if (prevBlock.gasUsed > parentGasTarget) {
         let gasUsedDelta = prevBlock.gasUsed - parentGasTarget 
-        let x = prevBlock.baseFee*gasUsedDelta
+        let x = prevBlock.baseFeePerGas*gasUsedDelta
         let y = x/parentGasTarget
         let baseFeeDelta = Math.max(y/baseFeeChangeDenominator, 1)
 
-        return prevBlock.BaseFee, baseFeeDelta
+        return (prevBlock.baseFeePerGas+ baseFeeDelta)
     }else{
         let gasUsedDelta = parentGasTarget - prevBlock.gasUsed
-        let x = prevBlock.baseFee*gasUsedDelta
+        let x = prevBlock.baseFeePerGas*gasUsedDelta
         let y = x/parentGasTarget
         let baseFeeDelta = y/baseFeeChangeDenominator
 
-        return Math.max(prevBlock.baseFee - baseFeeDelta, 0)
+        return Math.max(prevBlock.baseFeePerGas - baseFeeDelta, 0)
 
     }
 
@@ -219,7 +228,7 @@ async function iteration(lastStartingTime){
 
     while ((Math.floor(new Date().getTime() / 1000))-lastStartingTime <= 1800){
         await getBlockTxCount(lastStartingTime)
-        await timer(300)
+        await timer(100)
     }
 
     return
@@ -228,9 +237,9 @@ async function iteration(lastStartingTime){
 async function main(){
 
     var lastStartingTime = Math.floor(new Date().getTime() / 1000)
-    
+
     fs.appendFile(`./output/out-${lastStartingTime}.csv`, 
-    `blockNumber, timestamp, txCount, gasUsed, gasLimit, baseFee, pendingTxAfterBlock, queuedTxAfterBlock, pendingCountMoreThanLastBlockGasFee, blockMiner`
+    `blockNumber, timestamp, txCount, gasUsed, gasLimit, baseFee, pendingTxAfterBlock, queuedTxAfterBlock, pendingCountMoreThanLastBlockGasFee, blockMiner, prevBlockMiner, prevBlockBaseFee, baseFeeAlt, pendingCountMoreThanLastBlockGasFee2, potentialDiff`
     , function (err) {
         if (err) throw err;
         console.log('Initialised');
